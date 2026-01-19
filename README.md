@@ -1,3 +1,4 @@
+<img width="1584" height="396" alt="531327992-39e77446-bb9f-49c7-befa-6228fac5414f" src="https://github.com/user-attachments/assets/badbdb32-4f49-47ae-8ddd-099cf33cebf7" />
 
 # NSU-CPC-WEBSITE
 
