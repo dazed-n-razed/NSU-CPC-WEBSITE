@@ -8,7 +8,7 @@
 
 ## Video Demo
 <a href="https://www.youtube.com/watch?v=-EOPMRgjLik" target="_blank">
-  <img src="https://img.youtube.com/vi/-EOPMRgjLik/0.jpg" alt="NSU CPC Website Redesign Overview" style="width: auto; height: auto;" />
+  <img src="https://img.youtube.com/vi/-EOPMRgjLik/0.jpg" alt="NSU CPC Website Redesign Overview" style="width: full; height: auto;" />
 </a>
 
 ## Contents
