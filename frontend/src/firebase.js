@@ -1,5 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -17,4 +18,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-export default app;
+// Set up Firebase Auth and perform anonymous sign-in so Storage uploads have an authenticated user.
+// This is convenient for development. For production, sign in users properly and tighten Storage rules.
+const auth = getAuth(app);
+signInAnonymously(auth).catch((err) => {
+  // Ignore errors here; EditUserProfile shows upload errors separately.
+  console.warn("Anonymous sign-in failed:", err.message || err);
+});
+
+export { app as default, auth };

@@ -5,7 +5,7 @@ import {
   combinedCategories,
 } from "../../../data/postJobsData";
 
-import NavBar from "../../../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import { UserContext } from "../../../../contexts/UserContext";
 import TopNav from "../../../TopNav";
 
@@ -219,13 +219,7 @@ function JobPostingForm() {
   }
 
   return (
-    <div className="flex flex-row">
-      <div className="">
-        <UserContext.Provider value={{ userInfo, percent, appliedJobs }}>
-          <NavBar className=" flex bg-gray-200 w-full" />
-        </UserContext.Provider>
-      </div>
-      <div className="main flex flex-col items-center w-full">
+    <div className="main flex flex-col items-center w-full">
         <div className="w-full">
           <UserContext.Provider value={{ userInfo }}>
             <TopNav />
@@ -283,7 +277,6 @@ function JobPostingForm() {
           <div className="p-[2px] rounded-box bg-blue-400 mb-5 w-[200px]"></div>
         </div>
       </div>
-    </div>
   );
 }
 

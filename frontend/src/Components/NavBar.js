@@ -1,36 +1,35 @@
 import React, { useState, useContext, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../contexts/UserContext";
 
-const logout = () => {
-  localStorage.removeItem("userInfo");
-  alert("Logged out successfully");
-  window.location.href = "/";
-};
+// logout handled inside component using router navigation
 
 function NavButton({ buttonText, destination, svg }) {
   const [isActive, setIsActive] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Check if the current URL matches the destination
-    const currentPath = window.location.pathname;
+    const currentPath = location.pathname;
     if (currentPath === destination) {
       setIsActive(true);
     } else {
       setIsActive(false);
     }
-  }, [destination]);
+  }, [destination, location.pathname]);
 
   const handleClick = () => {
     setIsActive(true);
-    window.location.href = destination;
+    navigate(destination);
   };
 
   return (
     <button
-      className={`block py-2 px-4 border-[1px] mb-2 border-white rounded-box text-sm font-sans text-left focus:outline-none w-full ${
+      className={`block py-2 px-4 border-[1px] mb-2 border-gray-200 rounded-box text-sm font-sans text-left focus:outline-none w-full ${
         isActive
-          ? "bg-white text-blue-400"
-          : "text-white hover:bg-white hover:text-blue-400"
+          ? "bg-blue-50 text-blue-600"
+          : "text-gray-700 hover:bg-gray-100 hover:text-blue-600"
       }`}
       onClick={handleClick}
     >
@@ -55,6 +54,7 @@ function NavButton({ buttonText, destination, svg }) {
 
 const NavBar = () => {
   const { userInfo, percent, appliedJobs } = useContext(UserContext);
+  const navigate = useNavigate();
   const isCorporate =
     JSON.parse(localStorage.getItem("userInfo"))?.userType === "corporate";
   const isStudent =
@@ -63,7 +63,7 @@ const NavBar = () => {
     JSON.parse(localStorage.getItem("userInfo"))?.userType === "admin";
 
   return (
-    <div className="bg-custom-color px-3 h-screen sticky w-[330px] hidden lg:block left-0 top-0 ">
+    <div className="bg-white px-3 h-screen sticky w-[330px] hidden lg:block left-0 top-0 ">
       <div className="h-full w-full flex flex-col justify-between">
         <div>
           <div className="w-full p-2 pt-8 flex justify-center ">
@@ -76,7 +76,7 @@ const NavBar = () => {
             </div>
           </div>
           <br></br>
-          <div className="w-full text-center mb-4 text-sm text-white">
+          <div className="w-full text-center mb-4 text-sm text-gray-700">
             <p className="text-xl">
               {isAdmin ? "Welcome Administrator" : ""}
               {userInfo?.name}
@@ -213,8 +213,12 @@ const NavBar = () => {
             )}
 
             <button
-              onClick={logout}
-              className="block py-2 px-4 border-[1px] mb-2 border-white rounded-box text-sm font-sans text-left text-white focus:outline-none hover:bg-white hover:text-blue-400 w-full"
+              onClick={() => {
+                localStorage.removeItem("userInfo");
+                alert("Logged out successfully");
+                navigate("/");
+              }}
+              className="block py-2 px-4 border-[1px] mb-2 border-gray-200 rounded-box text-sm font-sans text-left text-gray-700 focus:outline-none hover:bg-gray-100 hover:text-blue-600 w-full"
             >
               <div className="flex flex-row">
                 <svg
@@ -241,8 +245,8 @@ const NavBar = () => {
           {isStudent && (
             <div className=" flex-col">
               <div
-                className="stat  border border-gray-100 hover:border-blue-400 hover:bg-blue w-full text-left rounded-box cursor-pointer"
-                onClick={() => (window.location.href = "/applied-jobs")}
+                className="stat  border border-gray-100 hover:border-blue-400 hover:bg-blue-50 w-full text-left rounded-box cursor-pointer"
+                onClick={() => navigate("/applied-jobs")}
               >
                 <div className="stat-figure text-secondary">
                   <div className="avatar online">
@@ -266,8 +270,8 @@ const NavBar = () => {
                     ></path>
                   </svg>
                 </div>
-                <div className="text-white">Applied Jobs</div>
-                <div className="stat-value text-white">{appliedJobs}</div>
+                <div className="text-gray-700">Applied Jobs</div>
+                <div className="stat-value text-gray-900">{appliedJobs}</div>
               </div>
             </div>
           )}

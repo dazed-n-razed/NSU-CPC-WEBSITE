@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import NavBar from "../../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import { combinedCategories } from "../../data/postJobsData";
 import TopNav from "../../TopNav";
 import { useLocation } from "react-router-dom";
@@ -170,11 +170,7 @@ function JobBoard() {
   }
 
   return (
-    <div className="flex flex-row bg-gray-200 ">
-      <div className="">
-        <NavBar />
-      </div>
-      <div className="main bg-gray-100 flex flex-col w-full">
+    <div className="main bg-gray-100 flex flex-col w-full">
         <TopNav />
 
         {/* tweaking */}
@@ -304,7 +300,6 @@ function JobBoard() {
           </button>
         </div>
       </div>
-    </div>
   );
 }
 

@@ -27,6 +27,7 @@ const LoginForm = () => {
 
   const submitHandler = async (e) => {
     e.preventDefault();
+    setError("");
     // console.log(email, password, name);
     try {
       const config = {
@@ -50,7 +51,8 @@ const LoginForm = () => {
       localStorage.setItem("userInfo", JSON.stringify(data));
       setLoading(false);
     } catch (error) {
-      setError(error.response.data.message);
+      const message = error?.response?.data?.message || error?.message || "Connection failed. Is the backend running?";
+      setError(message);
       setLoading(false);
       /*setTimeout(() => {
         setError("");

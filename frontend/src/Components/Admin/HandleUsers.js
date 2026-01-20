@@ -3,7 +3,7 @@ import React, { useContext, useEffect, useState } from "react";
 import "tailwindcss/tailwind.css";
 import "daisyui";
 import TopNav from "../TopNav";
-import NavBar from "../NavBar";
+// NavBar provided by Layout
 import { UserContext } from "../../contexts/UserContext";
 import JobCard from "../JobCard";
 
@@ -226,11 +226,7 @@ const HandleUsers = () => {
   );
 
   return (
-    <div className="flex bg-sky-100">
-      <div className="">
-        <NavBar />
-      </div>
-      <div className="main flex flex-col w-full">
+    <div className="main flex flex-col w-full">
         <TopNav />
 
         <div className="p-4">
@@ -398,7 +394,6 @@ const HandleUsers = () => {
             CPC
           </p>
         </div>
-      </div>
     </div>
   );
 };

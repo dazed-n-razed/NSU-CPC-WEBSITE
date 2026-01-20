@@ -361,7 +361,7 @@ const Navbar = () => {
                 History
               </a>
               <a
-                href="/about/team"
+                href="/aboutus"
                 className="block rounded-lg px-4 py-2 hover:bg-gray-200"
               >
                 Team

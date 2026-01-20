@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { UserContext } from "../../contexts/UserContext";
 import TopNav from "../TopNav";
-import NavBar from "../NavBar";
+// NavBar provided by Layout
 
 const PendingJobs = () => {
   const { userInfo } = useContext(UserContext);
@@ -44,11 +44,7 @@ const PendingJobs = () => {
   }, [status, page, userInfo?.userType]);
 
   return (
-    <div className="flex  bg-gray-300 ">
-      <div className="">
-        <NavBar />
-      </div>
-      <div className="main flex flex-col w-full">
+    <div className="main flex flex-col w-full">
         <TopNav />
 
         <main className="container  bg-gray-300 mb-5">
@@ -87,7 +83,6 @@ const PendingJobs = () => {
           </div>
         </main>
       </div>
-    </div>
   );
 };
 

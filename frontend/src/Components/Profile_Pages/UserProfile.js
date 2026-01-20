@@ -4,7 +4,7 @@ import axios from "axios";
 // import jsPDF from "jspdf";
 import UserCV from "../pages/Jobs/CV/UserCV";
 import { UserContext } from "../../contexts/UserContext";
-import NavBar from "../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import Spinner from "../Spinner";
 
 function Profile() {
@@ -70,15 +70,7 @@ function Profile() {
   }
 
   return (
-    <div>
-      <div className="flex">
-        {/* First Card */}
-        <div>
-          <UserContext.Provider value={{ userInfo, percent, appliedJobs }}>
-            <NavBar />
-          </UserContext.Provider>
-        </div>
-        <div className="main bg-gray-100 flex justify-center w-full m-2">
+    <div className="main bg-gray-100 flex justify-center w-full m-2">
           <div className="shadow-sm"></div>
           {/* Second card */}
 
@@ -402,8 +394,6 @@ function Profile() {
               <UserCV />
             </UserContext.Provider>
           </div>
-        </div>
-      </div>
     </div>
   );
 }

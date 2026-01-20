@@ -43,11 +43,15 @@ export const UserContextProvider = ({ children }) => {
   }, []);
 
   const updateUserInfo = (updatedInfo) => {
-    setUserInfo((prevUserInfo) => ({
-      ...prevUserInfo,
-      ...updatedInfo,
-    }));
-    localStorage.setItem('userInfo', JSON.stringify({ ...userInfo, ...updatedInfo }));
+    setUserInfo((prevUserInfo) => {
+      const newUser = { ...prevUserInfo, ...updatedInfo };
+      try {
+        localStorage.setItem('userInfo', JSON.stringify(newUser));
+      } catch (e) {
+        // ignore localStorage errors
+      }
+      return newUser;
+    });
   };
 
   if (loading) {

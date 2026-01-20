@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import NavBar from "../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import { UserContext } from "../../contexts/UserContext";
 import TopNav from "../TopNav";
 
@@ -245,10 +245,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="flex bg-sky-100 ">
-      <div className=" w-auto">
-        <NavBar />
-      </div>
+    <div className="bg-sky-100 ">
       <div id="main" className="flex flex-col w-full ">
         <TopNav />
 

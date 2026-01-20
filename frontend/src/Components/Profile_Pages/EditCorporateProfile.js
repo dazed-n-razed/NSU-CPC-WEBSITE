@@ -9,7 +9,7 @@ import {
 } from "firebase/storage";
 import app from "../../firebase";
 import { UserContext } from "../../contexts/UserContext";
-import NavBar from "../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import TopNav from "../TopNav";
 
 const UpdateUserForm = () => {
@@ -44,8 +44,8 @@ const UpdateUserForm = () => {
         return;
       }
       const storage = getStorage(app);
-      const folder = "userpfp";
-      const fileName = new Date().getTime() + file.name;
+      const folder = fileType === "image" ? "companypfp" : "companyfiles";
+      const fileName = new Date().getTime() + "_" + file.name;
       const storageRef = ref(storage, `${folder}/${fileName}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -54,17 +54,19 @@ const UpdateUserForm = () => {
         (snapshot) => {
           const progress =
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log(fileType + " Upload is " + progress + "% done");
+          console.log(`${fileType} Upload is ${progress}% done`);
         },
         (error) => {
           console.error("Error during file upload:", error);
           reject(error);
         },
         () => {
-          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            console.log(fileType + " available at", downloadURL);
-            resolve(downloadURL);
-          });
+          getDownloadURL(uploadTask.snapshot.ref)
+            .then((downloadURL) => {
+              console.log(fileType + " available at", downloadURL);
+              resolve(downloadURL);
+            })
+            .catch(reject);
         }
       );
     });
@@ -164,10 +166,7 @@ const UpdateUserForm = () => {
   }
 
   return (
-    <div className="flex">
-      <NavBar />
-
-      <div className="main bg-gray-100 flex-grow">
+    <div className="main bg-gray-100 flex-grow">
         <TopNav />
         <hr></hr>
 
@@ -516,7 +515,6 @@ const UpdateUserForm = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

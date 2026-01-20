@@ -6,6 +6,7 @@ import reportWebVitals from "./reportWebVitals";
 import { UserContextProvider } from './contexts/UserContext';
 
 import routes from './routes';
+import Layout from './Components/Layout';
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
@@ -15,7 +16,10 @@ const generateRoutes = (routes) => {
   });
 };
 
-const router = createBrowserRouter(generateRoutes(routes));
+// nest all app routes under a Layout that renders the persistent NavBar
+const router = createBrowserRouter([
+  { path: '/', element: React.createElement(Layout), children: generateRoutes(routes) },
+]);
 
 root.render(
   <UserContextProvider>

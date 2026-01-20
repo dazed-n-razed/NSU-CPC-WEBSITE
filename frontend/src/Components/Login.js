@@ -3,7 +3,7 @@ import LoginForm from "./LoginForm";
 const Login = () => {
   return (
     <div className="flex w-full min-h-screen items-center justify-center ">
-      <style jsx global>{`
+      <style>{`
         body {
           background-image: url("https://firebasestorage.googleapis.com/v0/b/ratuls-projects.appspot.com/o/299%20final%20presentation.pptx.png?alt=media&token=eb16b380-f923-4ad1-a55f-ad2701c649ac");
           background-size: cover;

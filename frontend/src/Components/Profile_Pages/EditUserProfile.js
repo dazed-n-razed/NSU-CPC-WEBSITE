@@ -9,16 +9,20 @@ import {
 import app from "../../firebase";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import NavBar from "../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import { UserContext } from "../../contexts/UserContext";
 import TopNav from "../TopNav";
-import Spinner from "../Spinner";
 const EditUserProfile = () => {
   const [activeTab, setActiveTab] = useState("general");
   const [cvFile, setCvFile] = useState(null);
   const [cvDownloadURL, setCVDownloadURL] = useState("");
   const [pictureDownloadURL, setPictureDownloadURL] = useState("");
+  const [picturePreview, setPicturePreview] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100, shows inline progress
+  const [photoUpdated, setPhotoUpdated] = useState(false); // brief success animation
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadError, setUploadError] = useState("");
   const {
     userInfo,
     setUserInfo,
@@ -60,23 +64,27 @@ const EditUserProfile = () => {
         // Handle errors here
       });
   };
-  const uploadFile = (fileType) => {
+  const uploadFile = (fileType, fileParam = null) => {
     const storage = getStorage(app);
     const folder = fileType === "image" ? "userpfp" : "userfiles";
-    const fileName =
-      new Date().getTime() +
-      (folder === "userpfp" ? pictureFile.name : cvFile.name);
+    const file = fileParam || (fileType === "image" ? pictureFile : cvFile);
+    if (!file) {
+      alert("No file provided for upload.");
+      return;
+    }
+    const fileName = new Date().getTime() + (folder === "userpfp" ? file.name : file.name);
     const storageRef = ref(storage, `${folder}/${fileName}`);
-    const file = fileType === "image" ? pictureFile : cvFile;
     const uploadTask = uploadBytesResumable(storageRef, file);
     setLoading(true);
+    setUploadProgress(0);
     console.log(loading);
-    uploadTask.on(  
+    uploadTask.on(
       "state_changed",
       (snapshot) => {
         const progress =
           (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
         console.log("CV Upload is " + progress + "% done");
+        setUploadProgress(Math.floor(progress));
         switch (snapshot.state) {
           case "paused":
             console.log("CV Upload is paused");
@@ -100,29 +108,52 @@ const EditUserProfile = () => {
           default:
             break;
         }
+        setLoading(false);
+        setUploadProgress(0);
+        setUploadError("Upload failed. See console for details.");
+        setTimeout(()=>setUploadError(""), 4000);
       },
       () => {
-        if (fileType === "image" && userInfo.picture !== "") {
-          handleDeleteFile(userInfo.picture);
+        if (fileType === "image" && userInfo.picture) {
+          // Only attempt delete if stored path looks like a storage path (not a download URL)
+          if (!userInfo.picture.startsWith("http") && userInfo.picture !== "") {
+            handleDeleteFile(userInfo.picture);
+          }
         }
         if (fileType === "cv" && userInfo.CV !== undefined) {
-          console.log("CV: ", userInfo.CV);
-          handleDeleteFile(userInfo.CV);
+          if (!userInfo.CV.startsWith("http") && userInfo.CV !== "") {
+            console.log("CV: ", userInfo.CV);
+            handleDeleteFile(userInfo.CV);
+          }
         }
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+        getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
           console.log("CV available at", downloadURL);
           if (fileType === "image") {
+            const updated = { ...userInfo, picture: downloadURL };
+            try {
+              // call updateInfo with explicit data so backend persists the URL
+              const resp = await updateInfo(updated);
+              // updateInfo will update context/localStorage; show success animation
+              setPhotoUpdated(true);
+              setUploadMessage("Photo uploaded successfully.");
+              setTimeout(() => setPhotoUpdated(false), 2500);
+              setTimeout(() => setUploadMessage(""), 3500);
+            } catch (err) {
+              console.error('Failed to persist picture URL to backend', err);
+              setUploadError("Failed to save photo to server.");
+              setTimeout(()=>setUploadError(""),4000);
+            }
             setPictureDownloadURL(downloadURL);
-            // console.log("Picture Download URL: ", downloadURL);
             setUserInfo({ ...userInfo, picture: downloadURL });
           }
           if (fileType === "cv") {
             setCVDownloadURL(downloadURL);
             setUserInfo({ ...userInfo, CV: downloadURL });
           }
+        }).finally(()=>{
+          setLoading(false);
+          setUploadProgress(0);
         });
-
-        setLoading(false);
       }
     );
   };
@@ -141,9 +172,20 @@ const EditUserProfile = () => {
       alert("Please select a picture file.");
       return;
     }
-    uploadFile("image");
+    uploadFile("image", pictureFile);
   };
   const [pictureFile, setPictureFile] = useState(null);
+  const handleUpdateInfoSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await updateInfo();
+      setSuccessMessage("Profile updated successfully.");
+      setErrorMessage("");
+    } catch (err) {
+      setErrorMessage("Failed to update profile. Check console for details.");
+      setSuccessMessage("");
+    }
+  };
   const updateCV = async (userData) => {
     // console.log("User Data: ", userData);
     try {
@@ -183,6 +225,8 @@ const EditUserProfile = () => {
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const changePassword = async () => {
     const userInfo = JSON.parse(localStorage.getItem("userInfo"));
@@ -222,18 +266,18 @@ const EditUserProfile = () => {
     }
   };
 
-  const updateInfo = async () => {
-    console.log("User Info: ", userInfo);
+  const updateInfo = async (data = null) => {
+    const payload = data || userInfo;
+    console.log("Updating user with:", payload);
     try {
-      // "http://localhost:5000/users/update",
       const response = await axios.put(
         `${process.env.REACT_APP_API_URL}/users/update`,
-        userInfo
+        payload
       );
-      alert("User Info Updated Successfully");
-      // append to userInfo
-      updateUserInfo(userInfo);
-
+      // Persist returned user info into context/localStorage
+      if (response && response.data) {
+        updateUserInfo(response.data);
+      }
       return response.data;
     } catch (error) {
       console.error("Error updating user info:", error);
@@ -245,403 +289,247 @@ const EditUserProfile = () => {
   useEffect(() => {
     getAppliedJobsCount();
     if (!localStorage.getItem("userInfo")) {
-      //alert("Please login to view this page.");
       navigate("/login");
     }
     if (cvDownloadURL !== "") {
-      // console.log("CV Download URL: ", cvDownloadURL);
       handleCVUpload();
       setCVDownloadURL("");
     }
-    if (pictureDownloadURL !== "") {
-      // console.log("Picture Download URL: ", pictureDownloadURL);
-      setUserInfo({ ...userInfo, picture: pictureDownloadURL });
-      updateInfo();
-      setPictureDownloadURL("");
-    }
     // eslint-disable-next-line
-  }, [cvDownloadURL, pictureDownloadURL]);
+  }, [cvDownloadURL]);
+
+  useEffect(() => {
+    return () => {
+      if (picturePreview) {
+        try {
+          URL.revokeObjectURL(picturePreview);
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+  }, [picturePreview]);
 
 
   return (
-    <div className="flex">
-      {/* First Card */}
-      <UserContext.Provider value={{ userInfo, percent, appliedJobs }}>
-        <NavBar />
-      </UserContext.Provider>
-      
-      <div className="main bg-gray-100 flex-grow">
+    <div className="main bg-gray-50 flex-grow min-h-screen">
         <UserContext.Provider value={{ userInfo }}>
           <TopNav />
         </UserContext.Provider>
-        <hr></hr>
-        {loading && <Spinner />}
-        <div className="w-full max-w-3xl mx-auto my-4 flex-col items-center justify-center shadow-xl rounded-3xl p-2 bg-white">
-          <div className="flex justify-between m-4 text-teal-600">
-            <button
-              className={`py-2 px-4 rounded-lg transition duration-500 ease-in-out 
-              border-2 border-gray-300
-              flex items-center justify-center ${
-                activeTab === "general"
-                  ? "bg-green-600 text-white font-bold border border-green-600"
-                  : ""
-              }`}
-              onClick={() => handleTabClick("general")}
-            >
-              General Info
-            </button>
 
-            <button
-              className={`py-2 px-4 rounded-lg transition duration-500 ease-in-out 
-              border-2 border-gray-300
-              flex items-center justify-center ${
-                activeTab === "changePassword"
-                  ? "bg-green-600 text-white font-bold border border-green-600"
-                  : ""
-              }`}
-              onClick={() => handleTabClick("changePassword")}
-            >
-              Change Password
-            </button>
+        <div className="max-w-6xl mx-auto p-6">
+          
 
-            <button
-              className={`py-2 px-4 rounded-lg transition duration-500 ease-in-out 
-              border-2 border-gray-300
-              flex items-center justify-center ${
-                activeTab === "updateInfo"
-                  ? "bg-green-600 text-white font-bold border border-green-600"
-                  : ""
-              }`}
-              onClick={() => handleTabClick("updateInfo")}
-            >
-              Update Info
-            </button>
-
-            <button
-              className={`py-2 px-4 rounded-lg transition duration-500 ease-in-out 
-              border-2 border-gray-300
-              flex items-center justify-center ${
-                activeTab === "updateCV"
-                  ? "bg-green-600 text-white font-bold border border-green-600"
-                  : ""
-              }`}
-              onClick={() => handleTabClick("updateCV")}
-            >
-              Update CV
-            </button>
-            <button
-              className={`py-2 px-4 rounded-lg transition duration-500 ease-in-out 
-              border-2 border-gray-300
-              flex items-center justify-center ${
-                activeTab === "updatePicture"
-                  ? "bg-green-600 text-white font-bold border border-green-600"
-                  : ""
-              }`}
-              onClick={() => handleTabClick("updatePicture")}
-            >
-              Update Picture
-            </button>
-          </div>
-
-          <div className="p-4">
-            {activeTab === "general" && (
-              <div className="flex justify-between">
-                <div className="w-1/2">
-                  {/* percentage */}
-                  <p className="mb-2 text-lg font-medium">
-                    Profile Completion: {percent}%
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Name: {userInfo.name}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Email: {userInfo.email}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    NSU ID: {userInfo.nsu_id}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    School: {userInfo.school}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Department: {userInfo.department}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Phone: {userInfo.phone}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Status: {userInfo.status}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    CGPA : {userInfo.cgpa}
-                  </p>
-                  <p className="mb-2 text-lg font-medium">
-                    Credits Completed : {userInfo.credits}
-                  </p>
-                </div>
-                <div className="flex-col justify-start w-1/2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left profile card */}
+            <aside className="col-span-1 bg-white rounded-xl shadow-md p-6">
+              <div className="flex items-center">
+                <div className="relative">
                   <img
-                    className="max-w-full h-auto object-contain"
-                    src={userInfo.picture}
-                    alt="user"
+                    src={picturePreview || userInfo?.picture || "/cpc_home_logo.png"}
+                    alt="avatar"
+                    className="w-24 h-24 rounded-full object-cover ring-2 ring-teal-400"
                   />
-                </div>
-              </div>
-            )}
-
-            {activeTab === "changePassword" && (
-              <div className="flex-col">
-                <div className="w-full mx-2 flex-1">
-                  <label className="text-lg font-medium">Old Password</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setOldPassword(e.target.value);
-                      }}
-                      type="password"
-                      placeholder="Enter your old password"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">New Password</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setNewPassword(e.target.value);
-                      }}
-                      type="password"
-                      placeholder="Enter your new password"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-center mt-4">
-                  <button
-                    onClick={changePassword}
-                    className="bg-white text-slate-400 uppercase py-2 px-4 rounded-xl 
-                  font-semibold cursor-pointer border-2 border-slate-300
-                  hover:bg-slate-700 hover:text-white transition duration-200 ease-in-out"
-                  >
-                    Change Password
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "updateCV" && (
-              <div>
-                <form onSubmit={handleCVSubmit}>
-                  <div className="flex-col">
-                    <div className="w-full mx-2 flex-1">
-                      <label className="text-lg font-medium">New CV(PDF)</label>
-                      <div>
-                        <input
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            setCvFile(file);
-                          }}
-                          type="file"
-                          accept=".pdf"
-                          className={
-                            "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                          }
-                        />
-                      </div>
+                  {uploadProgress > 0 && uploadProgress < 100 && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
+                      <div className="text-white font-semibold">{uploadProgress}%</div>
                     </div>
-
-                    <div className="flex justify-center mt-4">
-                      <button
-                        type="submit"
-                        className="bg-white text-slate-400 uppercase py-2 px-4 rounded-xl 
-                        font-semibold cursor-pointer border-2 border-slate-300
-                      hover:bg-slate-700 hover:text-white transition duration-200 ease-in-out"
-                      >
-                        Upload CV
-                      </button>
-                    </div>
-                  </div>
-
-                  {userInfo.CV && (
-                    <p className="mb-2">
-                      Current CV:{" "}
-                      <button
-                        type="button"
-                        onClick={() => window.open(userInfo.CV)}
-                        className="bg-blue-500 text-white px-4 py-2 rounded-md"
-                      >
-                        View CV
-                      </button>
-                    </p>
                   )}
-                </form>
-              </div>
-            )}
-
-            {activeTab === "updatePicture" && (
-              <div>
-                <form onSubmit={handlePictureSubmit}>
-                  {userInfo.picture && (
-                    <p className="text-lg font-medium mx-2">
-                      Current Picture: <img src={userInfo.picture} alt="user" />
-                    </p>
+                  {photoUpdated && (
+                    <div className="absolute right-0 bottom-0 bg-emerald-500 rounded-full p-1">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    </div>
                   )}
-                  <div className="flex-col">
-                    <div className="w-full mx-2 flex-1">
-                      <label className="text-lg font-medium">New Picture</label>
-                      <div>
-                        <input
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            setPictureFile(file);
-                          }}
-                          type="file"
-                          accept=".jpg, .jpeg, .png"
-                          className={
-                            "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex mx-2 justify-center mt-4">
-                      <button
-                        type="submit"
-                        className="bg-white text-slate-400 uppercase py-2 px-4 rounded-xl 
-                        font-semibold cursor-pointer border-2 border-slate-300
-                      hover:bg-slate-700 hover:text-white transition duration-200 ease-in-out"
-                      >
-                        Upload Picture
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                </div>
+                <div className="ml-4">
+                  <h2 className="text-xl font-semibold">{userInfo?.name}</h2>
+                  <p className="text-sm text-gray-500">{userInfo?.email}</p>
+                </div>
               </div>
-            )}
+              {uploadMessage && (
+                <div className="fixed right-4 top-4 bg-emerald-500 text-white px-4 py-2 rounded shadow">
+                  {uploadMessage}
+                </div>
+              )}
+              {uploadError && (
+                <div className="fixed right-4 top-4 bg-red-500 text-white px-4 py-2 rounded shadow">
+                  {uploadError}
+                </div>
+              )}
 
-            {activeTab === "updateInfo" && (
-              <div className="w-full mx-2 flex-1">
-                <label className="text-lg font-medium">Name</label>
+              <div className="mt-6">
+                <div className="text-sm text-gray-600">Profile Completion</div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${percent || 0}%` }} />
+                </div>
+                <div className="mt-3 flex justify-between text-sm text-gray-600">
+                  <span>Applied Jobs</span>
+                  <span className="font-medium">{appliedJobs || 0}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                <label htmlFor="quickPicture" className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-md cursor-pointer shadow-sm">
+                  Change Photo
+                </label>
+                <input id="quickPicture" type="file" accept="image/*" capture="environment" onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  setPictureFile(file);
+                  const url = URL.createObjectURL(file);
+                  setPicturePreview(url);
+                  uploadFile('image', file);
+                }} className="hidden" />
+
+                <button onClick={() => handleTabClick('updateInfo')} className="ml-auto px-4 py-2 border rounded-md text-sm">Edit Profile</button>
+              </div>
+            </aside>
+
+            {/* Right content */}
+            <main className="col-span-2">
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex flex-wrap gap-3 mb-4">
+                  {[
+                    { key: 'general', label: 'Overview' },
+                    { key: 'updateInfo', label: 'Details' },
+                    { key: 'updateCV', label: 'CV' },
+                    { key: 'updatePicture', label: 'Photo' },
+                    { key: 'changePassword', label: 'Password' },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => handleTabClick(tab.key)}
+                      className={`px-4 py-2 rounded-full text-sm border ${activeTab === tab.key ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-200'}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div>
-                  <input
-                    onChange={(e) => {
-                      setUserInfo({ ...userInfo, name: e.target.value });
-                    }}
-                    type="text"
-                    placeholder="Enter your name"
-                    className={
-                      "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                    }
-                  />
-                  <div />
-                </div>
+                  {activeTab === 'general' && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">About</h3>
+                      <p className="text-sm text-gray-600">{userInfo?.about || 'No description added.'}</p>
 
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">School</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setUserInfo({ ...userInfo, school: e.target.value });
-                      }}
-                      type="text"
-                      placeholder="Enter your School name"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm text-gray-500">NSU ID</div>
+                          <div className="font-medium mt-1">{userInfo?.nsu_id || '-'}</div>
+                        </div>
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm text-gray-500">Department</div>
+                          <div className="font-medium mt-1">{userInfo?.department || '-'}</div>
+                        </div>
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm text-gray-500">CGPA</div>
+                          <div className="font-medium mt-1">{userInfo?.cgpa || '-'}</div>
+                        </div>
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm text-gray-500">Credits</div>
+                          <div className="font-medium mt-1">{userInfo?.credits || '-'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">Department</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setUserInfo({
-                          ...userInfo,
-                          department: e.target.value,
-                        });
-                      }}
-                      type="text"
-                      placeholder="Enter your Department name"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
+                  {activeTab === 'changePassword' && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium">Old Password</label>
+                          <input value={oldPassword} onChange={(e)=>setOldPassword(e.target.value)} type="password" className="mt-1 w-full border rounded-md p-3" placeholder="Old password" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium">New Password</label>
+                          <input value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} type="password" className="mt-1 w-full border rounded-md p-3" placeholder="New password" />
+                        </div>
+                        <div className="flex justify-end">
+                          <button onClick={changePassword} className="px-4 py-2 bg-emerald-600 text-white rounded-md">Update Password</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">Phone</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setUserInfo({ ...userInfo, phone: e.target.value });
-                      }}
-                      type="text"
-                      placeholder="Enter your Phone Number"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
+                  {activeTab === 'updateCV' && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Upload CV</h3>
+                      <form onSubmit={handleCVSubmit} className="space-y-4">
+                        <input onChange={(e)=>{setCvFile(e.target.files[0])}} type="file" accept=".pdf" className="block" />
+                        {cvFile && <div className="text-sm text-gray-600">Selected: {cvFile.name}</div>}
+                        <div className="flex justify-end">
+                          <button disabled={loading} type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-md">Upload</button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
 
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">CGPA</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setUserInfo({ ...userInfo, cgpa: e.target.value });
-                      }}
-                      type="text"
-                      placeholder="Enter your Current CGPA"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
+                  {activeTab === 'updatePicture' && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Update Photo</h3>
+                      <form onSubmit={handlePictureSubmit} className="space-y-4">
+                        <input onChange={(e)=>{
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          setPictureFile(file);
+                          const url = URL.createObjectURL(file);
+                          setPicturePreview(url);
+                        }} type="file" accept="image/*" capture="environment" />
+                        {pictureFile && <div className="text-sm text-gray-600">Selected: {pictureFile.name}</div>}
+                        <div className="flex justify-end">
+                          <button disabled={loading} type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-md">Upload Photo</button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
 
-                <div className="w-full mx-2 flex-1 mt-4">
-                  <label className="text-lg font-medium">Credit Finished</label>
-                  <div>
-                    <input
-                      onChange={(e) => {
-                        setUserInfo({ ...userInfo, credits: e.target.value });
-                      }}
-                      type="text"
-                      placeholder="Enter your Credit Finished"
-                      className={
-                        "w-full border-2 rounded-xl p-4 mt-1 bg-transparent"
-                      }
-                    />
-                  </div>
-                </div>
+                  {activeTab === 'updateInfo' && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Edit Details</h3>
+                      <form onSubmit={handleUpdateInfoSubmit} className="space-y-4">
+                        {successMessage && <div className="text-green-600">{successMessage}</div>}
+                        {errorMessage && <div className="text-red-600">{errorMessage}</div>}
 
-                <div className="flex justify-center mt-4">
-                  <button
-                    onClick={updateInfo}
-                    className="bg-white text-slate-400 uppercase py-2 px-4 rounded-xl 
-                    font-semibold cursor-pointer border-2 border-slate-300
-                  hover:bg-slate-700 hover:text-white transition duration-200 ease-in-out"
-                  >
-                    Update Info
-                  </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium">Name</label>
+                            <input value={userInfo?.name||''} onChange={(e)=>setUserInfo({...userInfo, name: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">Phone</label>
+                            <input value={userInfo?.phone||''} onChange={(e)=>setUserInfo({...userInfo, phone: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">School</label>
+                            <input value={userInfo?.school||''} onChange={(e)=>setUserInfo({...userInfo, school: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">Department</label>
+                            <input value={userInfo?.department||''} onChange={(e)=>setUserInfo({...userInfo, department: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">CGPA</label>
+                            <input value={userInfo?.cgpa||''} onChange={(e)=>setUserInfo({...userInfo, cgpa: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium">Credits</label>
+                            <input value={userInfo?.credits||''} onChange={(e)=>setUserInfo({...userInfo, credits: e.target.value})} className="mt-1 w-full border rounded-md p-3" />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button disabled={loading} type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-md">Save Changes</button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </main>
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

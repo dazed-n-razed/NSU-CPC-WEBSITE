@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import NavBar from "../../../NavBar";
+// NavBar is provided by the app Layout; remove local import
 import TopNav from "../../../TopNav";
 
 const AppliedJobs = () => {
@@ -178,11 +178,7 @@ const AppliedJobs = () => {
   }
 
   return (
-    <div className="flex flex-row bg-gray-100 ">
-      <div className="">
-        <NavBar />
-      </div>
-      <div className="main flex flex-col w-full">
+    <div className="main flex flex-col w-full">
         <TopNav />
 
         <div className="p-4">
@@ -229,7 +225,6 @@ const AppliedJobs = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
