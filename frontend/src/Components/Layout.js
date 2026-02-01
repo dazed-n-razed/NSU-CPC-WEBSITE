@@ -4,7 +4,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 export default function Layout() {
   const location = useLocation();
-  const hideNavPaths = ["/", "/home"];
+  const hideNavPaths = ["/", "/home", "/login", "/user-register", "/corporate-register", "/select-reg-type", "/authredirect"];
   const shouldHideNav = hideNavPaths.includes(location.pathname);
 
   return (

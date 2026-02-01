@@ -1,0 +1,63 @@
+# Development Docker Compose
+# Use this for local development with hot reload
+
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nsu-cpc-backend-dev
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      MONGO_URI: ${MONGO_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:5000/auth/google/callback}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+    networks:
+      - nsu-cpc-network
+    volumes:
+      - ./backend:/app          # 🔥 Live code sync
+      - /app/node_modules
+    restart: unless-stopped
+
+  # Frontend React Application (Development Mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev    # 🔥 Use dev Dockerfile
+    container_name: nsu-cpc-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      GENERATE_SOURCEMAP: ${GENERATE_SOURCEMAP:-false}
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5000}
+      REACT_APP_FIREBASE_API_KEY: ${REACT_APP_FIREBASE_API_KEY}
+      REACT_APP_FIREBASE_AUTH_DOMAIN: ${REACT_APP_FIREBASE_AUTH_DOMAIN}
+      REACT_APP_FIREBASE_PROJECT_ID: ${REACT_APP_FIREBASE_PROJECT_ID}
+      REACT_APP_FIREBASE_STORAGE_BUCKET: ${REACT_APP_FIREBASE_STORAGE_BUCKET}
+      REACT_APP_FIREBASE_MESSAGING_SENDER_ID: ${REACT_APP_FIREBASE_MESSAGING_SENDER_ID}
+      REACT_APP_FIREBASE_APP_ID: ${REACT_APP_FIREBASE_APP_ID}
+      # React dev server settings
+      WATCHPACK_POLLING: true
+      CHOKIDAR_USEPOLLING: true
+    depends_on:
+      - backend
+    networks:
+      - nsu-cpc-network
+    volumes:
+      - ./frontend:/app          # 🔥 Live code sync
+      - /app/node_modules
+      - /app/build               # Don't sync build folder
+    restart: unless-stopped
+    stdin_open: true            # Keep stdin open (needed for React)
+    tty: true                   # Allocate pseudo-TTY
+
+networks:
+  nsu-cpc-network:
+    driver: bridge
